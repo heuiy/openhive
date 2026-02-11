@@ -52,7 +52,7 @@ Copyright (C) Microsoft Corporation. All rights reserved.
 
 PS C:\Users\LGChem> cd "D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark"
 
-PS D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark> uv init --python=3012
+PS D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark> uv init --python=3.12
 
 Initialized project `240318-boostin-shipping-mark`
 
