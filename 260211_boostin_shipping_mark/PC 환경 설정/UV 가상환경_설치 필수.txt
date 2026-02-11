@@ -1,0 +1,63 @@
+# UV 가이드
+
+- [UV 공식문서](https://github.com/astral-sh/uv)
+- [UV 쉬운 설명](https://tilnote.io/pages/67f2927b2a14e2a1ab482f5a)
+
+
+# UV를 추천하는 이유
+
+- 콘다는 의존성이 관리가 쉽지 않음
+    - pip 로 설치했다가 의존성이 엉망이 되어서 힘들게 작업했던 프로젝트가 안 돌아가는 경우도 있음
+- poetry
+    - 의존성 관리가 엄격함. dependency 안 맞으면 설치 자체가 안됨
+    - 근데 poetry 는 속도가 좀 느림
+- uv 는 poetry 의 의존성 장점과 빠른 속도까지 잡았음
+
+
+# uv 설치
+
+```powershell
+PS C:\Users\LGChem> powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+Downloading uv 0.9.5 (x86_64-pc-windows-msvc)
+Installing to C:\Users\LGChem\.local\bin
+  uv.exe
+  uvx.exe
+  uvw.exe
+everything's installed!
+
+To add C:\Users\LGChem\.local\bin to your PATH, either restart your shell or run:
+
+    set Path=C:\Users\LGChem\.local\bin;%Path%   (cmd)
+    $env:Path = "C:\Users\LGChem\.local\bin;$env:Path"   (powershell)
+
+PS C:\Users\LGChem> $env:Path = "C:\Users\LGChem\.local\bin;$env:Path"
+# uv 설치 후 path 설정해줘야 함
+
+PS C:\Users\LGChem> uv --version
+
+uv 0.9.5 (d5f39331a 2025-10-21)
+# uv 버전 확인되면 정상 설치된 것
+```
+
+
+# uv 가상환경 생성
+
+```powershell
+
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+새로운 기능 및 개선 사항에 대 한 최신 PowerShell을 설치 하세요! https://aka.ms/PSWindows
+
+PS C:\Users\LGChem> cd "D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark"
+
+PS D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark> uv init --python=3012
+
+Initialized project `240318-boostin-shipping-mark`
+
+PS D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark> uv sync
+
+PS D:\LGCHEM SWF BACKUP\Git_Company\Nirmata_Y23_\Y24\240318 부스틴 Shipping mark 출력\240318_boostin_shipping_mark> code .
+```
+

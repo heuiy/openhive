@@ -1,0 +1,8 @@
+# VSCode
+
+- [VSCode 설치](https://code.visualstudio.com/)
+
+VSCode 외 Kiro, Antigravity 등 선호하시는 다른 코드 에디터 사용하셔도 무방합니다.
+
+단순 스케쥴러 실행만 해보신다면 VSCode 설치 안하셔도 됩니다.
+
