@@ -1,0 +1,13 @@
+[project]
+name = "shipping-mark-webapp"
+version = "1.0.0"
+description = "Shipping Mark PDF 웹앱 - 국가별 배송 마크 PDF 생성 도구"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0",
+    "PyPDF4>=1.27",
+    "reportlab>=4.0",
+]
+
+[tool.uv]
+dev-dependencies = []

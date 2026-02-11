@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipping Mark PDF 생성기</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-light: #dbeafe;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar { background: var(--primary) !important; }
+        .card { border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .card-header { background: var(--primary-light); border-bottom: 1px solid var(--border); font-weight: 600; }
+        .form-label { font-weight: 500; font-size: 0.875rem; color: var(--text-muted); }
+        .coord-input { width: 80px; display: inline-block; text-align: center; font-family: monospace; font-size: 0.85rem; }
+        .coord-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .coord-group label { font-size: 0.75rem; color: var(--text-muted); min-width: 15px; }
+        .batch-card { border-left: 4px solid var(--primary); background: #f1f5f9; }
+        .batch-card .batch-header { display: flex; justify-content: space-between; align-items: center; }
+        .btn-generate { background: var(--primary); border: none; padding: 12px 32px; font-size: 1rem; font-weight: 600; }
+        .btn-generate:hover { background: #1d4ed8; }
+        .btn-preview { background: #059669; border: none; padding: 10px 24px; font-weight: 600; }
+        .btn-preview:hover { background: #047857; }
+        #previewContainer { border: 2px dashed var(--border); border-radius: 12px; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+        #previewContainer iframe { width: 100%; height: 600px; border: none; border-radius: 8px; }
+        #previewContainer .placeholder-text { color: var(--text-muted); font-size: 0.9rem; }
+        .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .settings-item { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+        .settings-item .item-label { font-weight: 600; font-size: 0.8rem; color: var(--primary); margin-bottom: 6px; }
+        .profile-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .profile-badge.letter { background: #dcfce7; color: #166534; }
+        .profile-badge.landscape { background: #fef3c7; color: #92400e; }
+        .status-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; }
+        .spinner-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .extra-field-section { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+        .extra-field-section .section-title { font-weight: 600; color: #92400e; font-size: 0.85rem; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark px-3 mb-4">
+    <span class="navbar-brand fw-bold"><i class="bi bi-box-seam me-2"></i>Shipping Mark PDF 생성기</span>
+    <span class="text-white-50 small">LG Chem Life Sciences</span>
+</nav>
+
+<div class="container-fluid px-3 px-md-4 pb-5">
+    <form id="mainForm" enctype="multipart/form-data">
+
+        <!-- ═══ 1. 프로필 선택 + 전체 박스 수 ═══ -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-globe me-2"></i>1. 국가 프로필 및 기본 설정</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label">국가 프로필</label>
+                        <select id="profileSelect" name="profile" class="form-select" required>
+                            <option value="">-- 선택하세요 --</option>
+                            {% for key, p in profiles.items() %}
+                            <option value="{{ key }}" data-pagesize="{{ p.pagesize }}">
+                                {{ p.name }} — {{ p.description }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">전체 박스 수</label>
+                        <input type="number" id="totalBoxes" name="total_boxes" class="form-control" min="1" value="30" required>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div id="profileInfo" class="small text-muted"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ 2. 국가별 추가 설정 (동적) ═══ -->
+        <div id="extraFieldsCard" class="card mb-3" style="display:none;">
+            <div class="card-header"><i class="bi bi-sliders me-2"></i>2. 국가별 추가 설정</div>
+            <div class="card-body" id="extraFieldsBody">
+                <!-- 동적 생성 -->
+            </div>
+        </div>
+
+        <!-- ═══ 3. 배치 관리 ═══ -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-layers me-2"></i><span id="batchCardTitle">3</span>. 배치 설정</span>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="refreshPdfFiles()" title="pdf/ 폴더 새로고침">
+                        <i class="bi bi-arrow-clockwise me-1"></i>PDF 목록 새로고침
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" id="addBatchBtn">
+                        <i class="bi bi-plus-lg me-1"></i>배치 추가
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-2 small text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <code>pdf/</code> 폴더에 PDF 원본을 넣은 뒤 드롭다운에서 선택하세요.
+                    새 파일 추가 시 "PDF 목록 새로고침" 클릭.
+                    복사 매수의 합 = 전체 박스 수
+                </div>
+                <div id="batchContainer"></div>
+                <div id="batchSummary" class="mt-2 small fw-bold"></div>
+            </div>
+        </div>
+
+        <!-- ═══ 4. 좌표 미세 조정 ═══ -->
+        <div class="card mb-3">
+            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#coordSettings" style="cursor:pointer;">
+                <i class="bi bi-gear me-2"></i><span id="coordCardTitle">4</span>. 좌표 미세 조정 (고급 설정)
+                <i class="bi bi-chevron-down float-end"></i>
+            </div>
+            <div class="collapse" id="coordSettings">
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        <i class="bi bi-lightbulb me-1"></i>
+                        PDF 좌표계: 좌측 하단이 (0, 0). x는 오른쪽, y는 위쪽으로 증가합니다.
+                        출력 환경에 따라 미세하게 조정하세요.
+                    </p>
+                    <div class="settings-grid" id="coordGrid">
+                        <!-- 동적 생성 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ 5. 미리보기 & 생성 ═══ -->
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-eye me-2"></i><span id="previewCardTitle">5</span>. 미리보기 및 생성</div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <button type="button" class="btn btn-success btn-preview" id="previewBtn">
+                        <i class="bi bi-eye me-1"></i>첫 페이지 미리보기
+                    </button>
+                    <button type="button" class="btn btn-primary btn-generate" id="generateBtn">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>최종 PDF 생성 & 다운로드
+                    </button>
+                </div>
+                <div id="previewContainer">
+                    <span class="placeholder-text"><i class="bi bi-file-earmark-pdf me-2"></i>미리보기가 여기에 표시됩니다</span>
+                </div>
+            </div>
+        </div>
+
+    </form>
+</div>
+
+<!-- 로딩 오버레이 -->
+<div id="loadingOverlay" class="spinner-overlay" style="display:none;">
+    <div class="text-center text-white">
+        <div class="spinner-border spinner-border-lg mb-3" role="status"></div>
+        <div class="fs-5" id="loadingText">PDF 생성 중...</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+// ─── 전역 데이터 ──────────────────────────────────────────────
+let profiles = {};
+let addresses = [];
+let pdfFiles = [];
+let currentProfile = null;
+let batchCount = 0;
+
+// ─── 초기화 ───────────────────────────────────────────────────
+async function init() {
+    const [pRes, aRes, fRes] = await Promise.all([
+        fetch('/api/profiles').then(r => r.json()),
+        fetch('/api/addresses').then(r => r.json()),
+        fetch('/api/pdf_files').then(r => r.json())
+    ]);
+    profiles = pRes;
+    addresses = aRes;
+    pdfFiles = fRes;
+    addBatch(); // 기본 1개 배치
+}
+
+async function refreshPdfFiles() {
+    pdfFiles = await fetch('/api/pdf_files').then(r => r.json());
+    // 기존 배치의 PDF 셀렉트 옵션 갱신
+    document.querySelectorAll('.pdf-select').forEach(sel => {
+        const currentVal = sel.value;
+        sel.innerHTML = buildPdfOptions();
+        if (currentVal && pdfFiles.includes(currentVal)) sel.value = currentVal;
+    });
+}
+
+function buildPdfOptions() {
+    if (pdfFiles.length === 0) {
+        return '<option value="">-- pdf/ 폴더에 파일 없음 --</option>';
+    }
+    return '<option value="">-- PDF 선택 --</option>' +
+        pdfFiles.map(f => `<option value="${f}">${f}</option>`).join('');
+}
+
+// ─── 프로필 변경 ──────────────────────────────────────────────
+document.getElementById('profileSelect').addEventListener('change', function() {
+    const key = this.value;
+    if (!key) {
+        currentProfile = null;
+        document.getElementById('extraFieldsCard').style.display = 'none';
+        document.getElementById('coordGrid').innerHTML = '';
+        document.getElementById('profileInfo').innerHTML = '';
+        updateCardTitles();
+        return;
+    }
+    currentProfile = key;
+    const p = profiles[key];
+
+    // 프로필 정보 표시
+    const psLabel = p.pagesize === 'landscape_letter' ? 'Landscape' : 'Portrait (Letter)';
+    const psBadge = p.pagesize === 'landscape_letter' ? 'landscape' : 'letter';
+    document.getElementById('profileInfo').innerHTML =
+        `<span class="profile-badge ${psBadge}">${psLabel}</span>
+         <span class="ms-2">${p.address_type === 'fixed' ? '고정 주소' : '주소 선택'}</span>`;
+
+    renderExtraFields(key, p);
+    renderCoordSettings(key, p);
+    renderBatchAddresses();
+    updateCardTitles();
+});
+
+function updateCardTitles() {
+    const hasExtra = document.getElementById('extraFieldsCard').style.display !== 'none';
+    const base = hasExtra ? 3 : 2;
+    document.getElementById('batchCardTitle').textContent = hasExtra ? '3' : '2';
+    document.getElementById('coordCardTitle').textContent = hasExtra ? '4' : '3';
+    document.getElementById('previewCardTitle').textContent = hasExtra ? '5' : '4';
+}
+
+// ─── 국가별 추가 필드 렌더링 ──────────────────────────────────
+function renderExtraFields(key, p) {
+    const body = document.getElementById('extraFieldsBody');
+    const card = document.getElementById('extraFieldsCard');
+    const fields = p.extra_fields || [];
+
+    if (fields.length === 0 && p.address_type === 'fixed') {
+        // 고정 주소만 있는 경우에도 표시
+        card.style.display = 'block';
+        body.innerHTML = `
+            <div class="extra-field-section">
+                <div class="section-title"><i class="bi bi-geo-alt me-1"></i>고정 주소</div>
+                <input type="text" name="address" class="form-control form-control-sm" value="${p.fixed_address || ''}" />
+                <div class="form-text">이 프로필은 고정 주소를 사용합니다. 필요시 수정 가능합니다.</div>
+            </div>`;
+        return;
+    }
+    if (fields.length === 0) {
+        card.style.display = 'none';
+        body.innerHTML = '';
+        return;
+    }
+
+    card.style.display = 'block';
+    let html = '';
+
+    // 고정 주소
+    if (p.address_type === 'fixed') {
+        html += `
+        <div class="extra-field-section">
+            <div class="section-title"><i class="bi bi-geo-alt me-1"></i>고정 주소</div>
+            <input type="text" name="address" class="form-control form-control-sm" value="${p.fixed_address || ''}" />
+        </div>`;
+    }
+
+    // consignee
+    if (fields.includes('consignee')) {
+        html += `
+        <div class="extra-field-section">
+            <div class="section-title"><i class="bi bi-building me-1"></i>Consignee 이름</div>
+            <input type="text" name="consignee_name" class="form-control form-control-sm"
+                   value="${p.defaults.consignee_name || ''}" />
+        </div>`;
+    }
+
+    // 등록번호 (칠레)
+    if (fields.includes('registration')) {
+        html += `
+        <div class="extra-field-section">
+            <div class="section-title"><i class="bi bi-card-text me-1"></i>등록번호</div>
+            <input type="text" name="reg_text" class="form-control form-control-sm"
+                   value="${p.defaults.reg_text || ''}" />
+        </div>`;
+    }
+
+    // 제품명
+    if (fields.includes('product_name')) {
+        html += `
+        <div class="extra-field-section">
+            <div class="section-title"><i class="bi bi-tag me-1"></i>제품명 (덮어쓰기)</div>
+            <input type="text" name="product_name" class="form-control form-control-sm"
+                   value="${p.defaults.product_name || ''}" />
+        </div>`;
+    }
+
+    // 박스 텍스트 (브라질)
+    if (fields.includes('box_text')) {
+        html += `
+        <div class="extra-field-section">
+            <div class="section-title"><i class="bi bi-box me-1"></i>박스 텍스트 (덮어쓰기)</div>
+            <input type="text" name="box_text" class="form-control form-control-sm"
+                   value="${p.defaults.box_text || ''}" />
+        </div>`;
+    }
+
+    // 바코드 안내
+    if (fields.includes('barcode')) {
+        html += `
+        <div class="extra-field-section">
+            <div class="section-title"><i class="bi bi-qr-code me-1"></i>바코드/QR 이미지</div>
+            <div class="small text-muted">
+                <code>pic/boostin.png</code> 파일이 앱 폴더에 있어야 합니다.
+                크기/위치는 고급 설정에서 조정 가능합니다.
+            </div>
+        </div>`;
+    }
+
+    body.innerHTML = html;
+}
+
+// ─── 좌표 설정 렌더링 ─────────────────────────────────────────
+function renderCoordSettings(key, p) {
+    const grid = document.getElementById('coordGrid');
+    const d = p.defaults;
+    let html = '';
+
+    // 페이지 번호
+    html += coordItem('페이지 번호 위치', [
+        ['page_num_x', 'X', d.page_num_x],
+        ['page_num_y', 'Y', d.page_num_y],
+        ['page_num_gap', '간격(스페이스)', d.page_num_gap],
+    ]);
+
+    // 주소 영역
+    html += coordItem('주소 배경(rect)', [
+        ['address_rect_x', 'X', d.address_rect_x],
+        ['address_rect_y', 'Y', d.address_rect_y],
+        ['address_rect_w', 'W', d.address_rect_w],
+        ['address_rect_h', 'H', d.address_rect_h],
+    ]);
+    html += coordItem('주소 텍스트', [
+        ['address_text_x', 'X', d.address_text_x],
+        ['address_text_y', 'Y', d.address_text_y],
+    ]);
+
+    // 국가별 추가 좌표
+    const fields = p.extra_fields || [];
+
+    if (fields.includes('consignee')) {
+        html += coordItem('Consignee 배경(rect)', [
+            ['consignee_hide_rect_x', 'X', d.consignee_hide_rect_x],
+            ['consignee_hide_rect_y', 'Y', d.consignee_hide_rect_y],
+            ['consignee_hide_rect_w', 'W', d.consignee_hide_rect_w],
+            ['consignee_hide_rect_h', 'H', d.consignee_hide_rect_h],
+        ]);
+        html += coordItem('Consignee 텍스트', [
+            ['consignee_text_x', 'X', d.consignee_text_x],
+            ['consignee_text_y', 'Y', d.consignee_text_y],
+        ]);
+    }
+
+    if (fields.includes('registration')) {
+        html += coordItem('등록번호 배경(rect)', [
+            ['reg_rect_x', 'X', d.reg_rect_x],
+            ['reg_rect_y', 'Y', d.reg_rect_y],
+            ['reg_rect_w', 'W', d.reg_rect_w],
+            ['reg_rect_h', 'H', d.reg_rect_h],
+        ]);
+        html += coordItem('등록번호 텍스트', [
+            ['reg_text_x', 'X', d.reg_text_x],
+            ['reg_text_y', 'Y', d.reg_text_y],
+        ]);
+    }
+
+    if (fields.includes('product_name')) {
+        html += coordItem('제품명 배경(rect)', [
+            ['product_hide_rect_x', 'X', d.product_hide_rect_x],
+            ['product_hide_rect_y', 'Y', d.product_hide_rect_y],
+            ['product_hide_rect_w', 'W', d.product_hide_rect_w],
+            ['product_hide_rect_h', 'H', d.product_hide_rect_h],
+        ]);
+        html += coordItem('제품명 텍스트', [
+            ['product_text_x', 'X', d.product_text_x],
+            ['product_text_y', 'Y', d.product_text_y],
+        ]);
+    }
+
+    if (fields.includes('box_text')) {
+        html += coordItem('박스텍스트 배경(rect)', [
+            ['box_text_hide_rect_x', 'X', d.box_text_hide_rect_x],
+            ['box_text_hide_rect_y', 'Y', d.box_text_hide_rect_y],
+            ['box_text_hide_rect_w', 'W', d.box_text_hide_rect_w],
+            ['box_text_hide_rect_h', 'H', d.box_text_hide_rect_h],
+        ]);
+        html += coordItem('박스텍스트 위치', [
+            ['box_text_x', 'X', d.box_text_x],
+            ['box_text_y', 'Y', d.box_text_y],
+        ]);
+    }
+
+    if (fields.includes('batch_number')) {
+        html += coordItem('배치번호 위치', [
+            ['batch_text_x', 'X', d.batch_text_x],
+            ['batch_text_y', 'Y', d.batch_text_y],
+        ]);
+    }
+
+    if (fields.includes('barcode')) {
+        html += coordItem('바코드/QR 위치 & 크기', [
+            ['barcode_x', 'X', d.barcode_x],
+            ['barcode_y', 'Y', d.barcode_y],
+            ['barcode_w', 'W', d.barcode_w],
+            ['barcode_h', 'H', d.barcode_h],
+        ]);
+    }
+
+    grid.innerHTML = html;
+}
+
+function coordItem(label, fields) {
+    let inputs = fields.map(([name, lbl, val]) =>
+        `<label>${lbl}</label><input type="number" step="0.5" name="${name}" value="${val}" class="form-control form-control-sm coord-input">`
+    ).join('');
+    return `
+    <div class="settings-item">
+        <div class="item-label">${label}</div>
+        <div class="coord-group">${inputs}</div>
+    </div>`;
+}
+
+// ─── 배치 관리 ────────────────────────────────────────────────
+function addBatch() {
+    const container = document.getElementById('batchContainer');
+    const idx = batchCount;
+    batchCount++;
+
+    const div = document.createElement('div');
+    div.className = 'batch-card card p-3 mb-2';
+    div.id = `batch_${idx}`;
+    div.dataset.idx = idx;
+
+    const p = currentProfile ? profiles[currentProfile] : null;
+    const hasBatchNumber = p && (p.extra_fields || []).includes('batch_number');
+    const addressType = p ? p.address_type : 'selectable';
+
+    let addressHtml = '';
+    if (addressType === 'selectable') {
+        addressHtml = `
+        <div class="col-md-4">
+            <label class="form-label">주소 선택</label>
+            <select name="address_${idx}" class="form-select form-select-sm">
+                ${addresses.map(a => `<option value="${a.value}">${a.label}</option>`).join('')}
+            </select>
+        </div>`;
+    }
+
+    let batchNumHtml = '';
+    if (hasBatchNumber) {
+        batchNumHtml = `
+        <div class="col-md-3">
+            <label class="form-label">배치 번호</label>
+            <input type="text" name="batch_number_${idx}" class="form-control form-control-sm" placeholder="예: B001 / 2025">
+        </div>`;
+    }
+
+    div.innerHTML = `
+        <div class="batch-header mb-2">
+            <span class="fw-bold text-primary">배치 ${idx + 1}</span>
+            ${batchCount > 1 ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeBatch(${idx})"><i class="bi bi-trash"></i></button>` : ''}
+        </div>
+        <div class="row g-2">
+            <div class="col-md-${hasBatchNumber ? '3' : '4'}">
+                <label class="form-label">PDF 파일 (pdf/ 폴더)</label>
+                <select name="pdf_${idx}" class="form-select form-select-sm pdf-select" required>
+                    ${buildPdfOptions()}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">복사 매수</label>
+                <input type="number" name="copies_${idx}" class="form-control form-control-sm copies-input" min="1" value="1" required data-idx="${idx}">
+            </div>
+            ${addressHtml}
+            ${batchNumHtml}
+        </div>
+    `;
+    container.appendChild(div);
+    updateBatchSummary();
+    updateBatchIndices();
+}
+
+function removeBatch(idx) {
+    const el = document.getElementById(`batch_${idx}`);
+    if (el) el.remove();
+    batchCount = document.querySelectorAll('.batch-card').length;
+    updateBatchIndices();
+    updateBatchSummary();
+}
+
+function updateBatchIndices() {
+    // 배치 인덱스 재정렬 (삭제 후)
+    const cards = document.querySelectorAll('#batchContainer .batch-card');
+    cards.forEach((card, i) => {
+        card.querySelector('.fw-bold').textContent = `배치 ${i + 1}`;
+    });
+}
+
+function renderBatchAddresses() {
+    // 프로필 변경 시 배치 내 주소 셀렉터 업데이트
+    if (!currentProfile) return;
+    const p = profiles[currentProfile];
+    const cards = document.querySelectorAll('#batchContainer .batch-card');
+
+    // 배치를 모두 제거하고 새로 추가 (간단한 방법)
+    const container = document.getElementById('batchContainer');
+    const existingCount = cards.length;
+    container.innerHTML = '';
+    batchCount = 0;
+    for (let i = 0; i < Math.max(existingCount, 1); i++) {
+        addBatch();
+    }
+}
+
+function updateBatchSummary() {
+    const inputs = document.querySelectorAll('.copies-input');
+    let total = 0;
+    inputs.forEach(inp => total += parseInt(inp.value || 0));
+    const target = parseInt(document.getElementById('totalBoxes').value || 0);
+    const el = document.getElementById('batchSummary');
+
+    if (total === target) {
+        el.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>배치 합계: ${total} / 전체: ${target} ✓</span>`;
+    } else {
+        el.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>배치 합계: ${total} / 전체: ${target} (불일치)</span>`;
+    }
+}
+
+// copies 변경 시 요약 업데이트
+document.getElementById('batchContainer').addEventListener('input', function(e) {
+    if (e.target.classList.contains('copies-input')) updateBatchSummary();
+});
+document.getElementById('totalBoxes').addEventListener('input', updateBatchSummary);
+
+document.getElementById('addBatchBtn').addEventListener('click', addBatch);
+
+// ─── FormData 수집 ────────────────────────────────────────────
+function collectFormData() {
+    const form = document.getElementById('mainForm');
+    const formData = new FormData(form);
+
+    // batch_count 추가
+    const batchCards = document.querySelectorAll('#batchContainer .batch-card');
+    formData.set('batch_count', batchCards.length);
+
+    // 배치 필드 재인덱싱 (삭제로 인한 갭 방지)
+    const reindexed = new FormData();
+
+    // 일반 필드 복사
+    for (const [key, val] of formData.entries()) {
+        if (key.match(/^(pdf|copies|address|batch_number)_\d+$/)) continue;
+        reindexed.set(key, val);
+    }
+
+    // 배치 필드 재인덱싱
+    let newIdx = 0;
+    batchCards.forEach((card) => {
+        const pdfSelect = card.querySelector('.pdf-select');
+        const copiesInput = card.querySelector('.copies-input');
+        const addressSelect = card.querySelector('select[name^="address_"]');
+        const batchNumInput = card.querySelector('input[name^="batch_number_"]');
+
+        if (pdfSelect) {
+            reindexed.set(`pdf_${newIdx}`, pdfSelect.value);
+        }
+        if (copiesInput) {
+            reindexed.set(`copies_${newIdx}`, copiesInput.value);
+        }
+        if (addressSelect) {
+            reindexed.set(`address_${newIdx}`, addressSelect.value);
+        }
+        if (batchNumInput) {
+            reindexed.set(`batch_number_${newIdx}`, batchNumInput.value);
+        }
+        newIdx++;
+    });
+
+    reindexed.set('batch_count', newIdx.toString());
+    return reindexed;
+}
+
+// ─── 미리보기 ─────────────────────────────────────────────────
+document.getElementById('previewBtn').addEventListener('click', async function() {
+    if (!currentProfile) {
+        alert('국가 프로필을 먼저 선택하세요.');
+        return;
+    }
+
+    const formData = collectFormData();
+
+    // 첫 배치 PDF 확인
+    if (!formData.get('pdf_0')) {
+        alert('미리보기를 위해 첫 번째 배치의 PDF를 선택하세요.');
+        return;
+    }
+
+    showLoading('미리보기 생성 중...');
+    try {
+        const resp = await fetch('/api/preview', { method: 'POST', body: formData });
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.error || '미리보기 실패');
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const container = document.getElementById('previewContainer');
+        container.innerHTML = `<iframe src="${url}#toolbar=1&navpanes=0"></iframe>`;
+    } catch (e) {
+        alert('미리보기 오류: ' + e.message);
+    } finally {
+        hideLoading();
+    }
+});
+
+// ─── 최종 PDF 생성 ───────────────────────────────────────────
+document.getElementById('generateBtn').addEventListener('click', async function() {
+    if (!currentProfile) {
+        alert('국가 프로필을 먼저 선택하세요.');
+        return;
+    }
+
+    const formData = collectFormData();
+    const batchCount = parseInt(formData.get('batch_count') || 0);
+
+    // 모든 배치에 PDF가 있는지 확인
+    for (let i = 0; i < batchCount; i++) {
+        const f = formData.get(`pdf_${i}`);
+        if (!f) {
+            alert(`배치 ${i+1}의 PDF 파일을 선택하세요.`);
+            return;
+        }
+    }
+
+    showLoading('최종 PDF 생성 중...');
+    try {
+        const resp = await fetch('/api/generate', { method: 'POST', body: formData });
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.error || 'PDF 생성 실패');
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+
+        // 다운로드
+        const a = document.createElement('a');
+        const cd = resp.headers.get('content-disposition');
+        let filename = 'shipping_mark.pdf';
+        if (cd) {
+            const match = cd.match(/filename\*?=(?:UTF-8'')?([^;\n]+)/i);
+            if (match) filename = decodeURIComponent(match[1].replace(/"/g, ''));
+        }
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // 미리보기에도 표시
+        const container = document.getElementById('previewContainer');
+        container.innerHTML = `<iframe src="${url}#toolbar=1&navpanes=0"></iframe>`;
+
+    } catch (e) {
+        alert('생성 오류: ' + e.message);
+    } finally {
+        hideLoading();
+    }
+});
+
+// ─── 유틸리티 ─────────────────────────────────────────────────
+function showLoading(text) {
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('loadingOverlay').style.display = 'flex';
+}
+function hideLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+// ─── 시작 ─────────────────────────────────────────────────────
+init();
+</script>
+
+</body>
+</html>
